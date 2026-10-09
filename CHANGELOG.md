@@ -8,3 +8,4 @@
 - Metrics (precision, recall, F1, false-alarm rate) and bootstrap confidence intervals.
 - Command line interface (`python -m kkspell evaluate | check`).
 - Test suite, lint configuration and GitHub Actions CI/CD.
+- Documentation of the evaluation protocol (`docs/protocol.md`).
