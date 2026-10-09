@@ -51,6 +51,8 @@ print(result["methods"]["char-LM"]["f1"], result["methods"]["char-LM"]["f1_ci95"
 `data/sample_corpus_kk.txt` is a tiny demo text (a few hundred short sentences). Results on it only show that the
 pipeline runs; use a real corpus (millions of tokens) for meaningful numbers.
 
+The exact protocol (split, tuning, error types, limitations) is described in [docs/protocol.md](docs/protocol.md).
+
 ## Corpus format
 
 Plain text with one sentence per line, or "block format": a header `#<integer id>`, then sentences, blocks separated by
