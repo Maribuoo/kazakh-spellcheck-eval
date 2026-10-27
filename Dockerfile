@@ -13,6 +13,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Give pip more patience on a slow network: longer timeout and automatic
+# retries instead of failing on one slow package download.
+ENV PIP_DEFAULT_TIMEOUT=100
+ENV PIP_RETRIES=5
+
 # Copy packaging metadata first so the dependency layer is cached
 # separately from source-code changes.
 COPY pyproject.toml README.md ./
