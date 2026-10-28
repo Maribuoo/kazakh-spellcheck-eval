@@ -37,9 +37,6 @@ jobs:
   docker:
     needs: test
     runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -53,11 +50,27 @@ jobs:
           tags: kkspell:ci
       - name: Smoke-test the built image
         run: docker run --rm kkspell:ci evaluate data/sample_corpus_kk.txt --n-eval 60 --bootstrap 50
-      - name: Log in to Docker Hub
-        if: ${{ github.ref == 'refs/heads/main' && env.DOCKERHUB_TOKEN != '' }}
-        run: echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-      - name: Push image to Docker Hub
-        if: ${{ github.ref == 'refs/heads/main' && env.DOCKERHUB_TOKEN != '' }}
+      - name: Deploy to test environment
+        # Continuous Deployment: promote the image that has just passed
+        # lint + tests + build to a stable tag, then run it once against
+        # the sample corpus and archive the output as the build's
+        # deployment evidence. kkspell is a batch/research CLI tool, not
+        # an HTTP service, so "deploying" it means making the latest
+        # verified image runnable and proving its output on every push,
+        # with no manual step in between.
         run: |
-          docker tag kkspell:ci $DOCKERHUB_USERNAME/kkspell:latest
-          docker push $DOCKERHUB_USERNAME/kkspell:latest
+          docker tag kkspell:ci kkspell:latest-tested
+          docker run --rm kkspell:latest-tested evaluate data/sample_corpus_kk.txt --n-eval 60 --bootstrap 50 | tee deploy_result.txt
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kkspell-deploy-result
+          path: deploy_result.txt
+      - name: Log in to Docker Hub
+        if: ${{ github.ref == 'refs/heads/main' && secrets.DOCKERHUB_TOKEN != '' }}
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+      - name: Push image to Docker Hub
+        if: ${{ github.ref == 'refs/heads/main' && secrets.DOCKERHUB_TOKEN != '' }}
+        run: |
+          docker tag kkspell:ci ${{ secrets.DOCKERHUB_USERNAME }}/kkspell:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/kkspell:latest

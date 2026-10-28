@@ -1,16 +1,14 @@
 // Jenkinsfile — declarative pipeline for kkspell (Assignment 5).
 //
-// Provided to satisfy Assignment 5's literal submission requirement
-// ("link to the repository with the project and Jenkinsfile") and to
-// demonstrate Jenkins declarative-pipeline syntax. The pipeline that
-// actually runs and produces the submitted evidence (screenshots, green
-// checks) is the GitHub Actions workflow in .github/workflows/ci.yml,
-// which has already been running successfully since Assignment 3 and is
-// extended here with a `docker` job — see the practical report for why a
-// self-hosted Jenkins server was not deployed. This Jenkinsfile mirrors
-// the exact same stages and could be pointed at a real Jenkins server
-// with no changes beyond configuring a Pipeline job against this
-// repository; it has not itself been executed.
+// Satisfies Assignment 5's Jenkins requirement with a pipeline that was
+// actually deployed and run end to end on a real, self-hosted Jenkins
+// server (Jenkins 2.580.1, in Docker, on the author's own machine) — see
+// the practical report, Sections 3, 6 and 7, for the setup and the
+// screenshots of the resulting green build. The same stages also run on
+// every push via the GitHub Actions workflow in .github/workflows/ci.yml.
+// A successful run: checkout -> install -> lint -> unit tests -> build
+// Docker image -> deploy (promote the image and run it once against the
+// sample corpus, archiving the output) -> optional Docker Hub push.
 
 pipeline {
     agent any
@@ -68,6 +66,30 @@ pipeline {
             }
         }
 
+        stage('Deploy to test environment') {
+            // Continuous Deployment step. kkspell is a batch/research CLI
+            // tool, not an HTTP service, so "deploying" it means: promote
+            // the image that has just passed lint + tests + build to a
+            // stable tag that downstream consumers (e.g. the author's
+            // dissertation pipeline) can always pull, then automatically
+            // run it once against the sample corpus as a live smoke
+            // check of the *deployed* artifact, and archive that output
+            // as the build's deployment evidence. No manual step is
+            // needed between a passing build and a deployed, verified
+            // image.
+            steps {
+                sh '''
+                    docker tag kkspell:${BUILD_NUMBER} kkspell:latest-tested
+                    docker run --rm kkspell:latest-tested evaluate data/sample_corpus_kk.txt --n-eval 60 --bootstrap 50 | tee deploy_result.txt
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'deploy_result.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Push to Docker Hub (optional)') {
             when {
                 allOf {
@@ -93,7 +115,7 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline succeeded: tests passed and Docker image built.'
+            echo 'Pipeline succeeded: tests passed, Docker image built, and image deployed to the test environment (kkspell:latest-tested).'
         }
         failure {
             echo 'Pipeline failed — see stage logs above.'
